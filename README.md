@@ -1,3 +1,3 @@
 # Minimal browser
 
-will write more about this later
+Minimal web browser project
