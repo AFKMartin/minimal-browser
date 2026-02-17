@@ -1,14 +1,36 @@
 import socket
 import sys
 import ssl
+import os
+
+DEFAULT_FILE = os.path.abspath("test.html")
 
 class URL:
     def __init__(self, url):
+        # Handle view-source
+        if url.startswith("view-source:"):
+            self.scheme = "view-source"
+            self.inner = URL(url[len("view-source:"):])
+            return
+        
+        # Handle data
+        if url.startswith("data:"):
+            self.scheme = "data"
+            _, rest = url.split(":", 1)
+            self.mimetype, self.data = rest.split(",", 1)
+            self.host = self.port = self.path = None
+            return
         
         # Scheme, url split where scheme = "http"
         self.scheme, url = url.split("://", 1)
-        assert self.scheme in ["http", "https"]
+        assert self.scheme in ["http", "https", "file"]
         
+        # file URLs
+        if self.scheme == "file":
+            self.path = url
+            self.host = self.port = None
+            return 
+            
         # Host, path split 
         if "/" not in url:
             url = url + "/"
@@ -29,6 +51,19 @@ class URL:
 
     # Create a request with sockets
     def request(self):
+        # Handle view-source
+        if self.scheme == "view-source":
+            return self.inner.request()
+        
+        # Handle data
+        if self.scheme == "data":
+            return self.data
+        
+        # file URLs
+        if self.scheme == "file":
+            with open(self.path, "r", encoding="utf8") as f:
+                return f.read()
+        
         s = socket.socket(
             family=socket.AF_INET,      # IPv4
             type=socket.SOCK_STREAM,    # TCP
@@ -41,10 +76,19 @@ class URL:
             ctx = ssl.create_default_context()
             s = ctx.wrap_socket(s, server_hostname=self.host)
 
-        # Raw HTTP request
-        request = "GET {} HTTP/1.0\r\n".format(self.path)   # Request line with the path
-        request += "Host: {}\r\n".format(self.host)         # Required host header
+        # Default headers
+        headers = {
+            "Host": self.host,
+            "Connection": "close",
+            "User-Agent": "Minimal-Web-Browser/1.0",
+        }
+
+        # HTTP/1.1 request
+        request = "GET {} HTTP/1.1\r\n".format(self.path)   # Request line with the path
+        for header, value in headers.items():               
+            request += "{}: {}\r\n".format(header, value)
         request += "\r\n"                                   # End of header (blank line)
+
         s.send(request.encode("utf8"))                      # Send the request as UTF-8
 
         # Wrap the socket as a text stream for easy reading
@@ -74,20 +118,40 @@ class URL:
     
 def show(body):
     in_tag = False
-    for c in body:
+    i = 0
+    while i < len(body):
+        c = body[i]
         if c == "<":
             in_tag = True
         elif c == ">":
             in_tag = False
         elif not in_tag:
-            print(c, end="")
+            # Check entities
+            if body[i:i+4] == "&lt;":
+                print("<", end="")
+                i+=4
+                continue
+            elif body[i:i+4] == "&gt;": 
+                print(">", end="")
+                i+=4
+                continue
+            else:
+                print(c, end="")
+        i+=1
 
 # load the web
 def load(url):
     body = url.request()
-    show(body)
+    # Handle view-source
+    if url.scheme == "view-source":
+        print(body)
+    else:
+        show(body)
     
 if __name__ == "__main__":
-    load(URL(sys.argv[1]))
+    if len(sys.argv) > 1:
+        load(URL(sys.argv[1]))
+    else:
+        load(URL("file://" + DEFAULT_FILE))
 
 
