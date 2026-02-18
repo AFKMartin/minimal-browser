@@ -2,10 +2,16 @@ import socket
 import sys
 import ssl
 import os
+import time
+import gzip
 
 DEFAULT_FILE = os.path.abspath("test.html")
 
 class URL:
+    # Cache sockets
+    _socket_cache = {}
+    _response_cache = {}
+
     def __init__(self, url):
         # Handle view-source
         if url.startswith("view-source:"):
@@ -50,7 +56,11 @@ class URL:
                 self.port = 443
 
     # Create a request with sockets
-    def request(self):
+    def request(self, redirect_limit=10):
+        # Redirect Handling
+        if redirect_limit == 0:
+            raise Exception("Too many redirects")
+
         # Handle view-source
         if self.scheme == "view-source":
             return self.inner.request()
@@ -64,23 +74,41 @@ class URL:
             with open(self.path, "r", encoding="utf8") as f:
                 return f.read()
         
-        s = socket.socket(
-            family=socket.AF_INET,      # IPv4
-            type=socket.SOCK_STREAM,    # TCP
-            proto=socket.IPPROTO_TCP    # TCP protocol
-        )
+        # Check for cached socket
+        cache_key = "{}://{}{}".format(self.scheme, self.host, self.path)
+        
+        if cache_key in URL._response_cache:
+            content, expiry_time = URL._response_cache[cache_key]
+            if time.time() < expiry_time:
+                return content
+        socket_key = (self.host, self.port)
+        
+        if socket_key in URL._socket_cache:
+            s = URL._socket_cache[socket_key]
+        
+        else:
+            s = socket.socket(
+                family=socket.AF_INET,      # IPv4
+                type=socket.SOCK_STREAM,    # TCP
+                proto=socket.IPPROTO_TCP    # TCP protocol
+            )
 
-        # Connect to port and wrap socket
-        s.connect((self.host, self.port))
-        if self.scheme == "https":
-            ctx = ssl.create_default_context()
-            s = ctx.wrap_socket(s, server_hostname=self.host)
+            # Connect to port and wrap socket
+            s.connect((self.host, self.port))
+
+            if self.scheme == "https":
+                ctx = ssl.create_default_context()
+                s = ctx.wrap_socket(s, server_hostname=self.host)
+            
+            # Cache the socket
+            URL._socket_cache[socket_key] = s
 
         # Default headers
         headers = {
             "Host": self.host,
-            "Connection": "close",
+            "Connection": "keep-alive",
             "User-Agent": "Minimal-Web-Browser/1.0",
+            "Accept-Encoding": "gzip",
         }
 
         # HTTP/1.1 request
@@ -92,27 +120,72 @@ class URL:
         s.send(request.encode("utf8"))                      # Send the request as UTF-8
 
         # Wrap the socket as a text stream for easy reading
-        response = s.makefile("r", encoding="utf8", newline="\r\n")
+        response = s.makefile("rb")
 
         # split the response
-        statusline = response.readline()
+        statusline = response.readline().decode("utf8")
         version, status, explanation = statusline.split(" ", 2)
 
         # Read all HTTP headers into a dictionary 
         response_headers = {}
         while True:
-            line = response.readline()
+            line = response.readline().decode("utf8")
             if line == "\r\n": break
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
 
-        # Ensure simple response format (no chunking or compression)
-        assert "transfer-encoding" not in response_headers
-        assert "content-encoding" not in response_headers
+        # Handle redirects
+        if status.startswith("3"):
+            location = response_headers["location"]
+            if location.startswith("/"):
+                location = "{}://{}{}".format(self.scheme, self.host, location)
+            socket_key = (self.host, self.port)
+            if socket_key in URL._socket_cache:
+                del URL._socket_cache[socket_key]
 
-        # Return content and close connection
-        content = response.read()
-        s.close()
+            s.close()
+            return URL(location).request(redirect_limit=redirect_limit - 1)
+        
+        # Handle transfer-enconding chunked
+        if response_headers.get("transfer-encoding") == "chunked":
+            chunks = []
+            while True:
+                size_line = response.readline().decode("utf8").strip()
+                chunk_size = int(size_line, 16)
+
+                if chunk_size == 0:
+                    break
+
+                chunk = response.read(chunk_size)
+                chunks.append(chunk)
+                response.read(2)
+            
+            content_bytes = b"".join(chunks)
+        
+        else:
+        
+            # Read content-lenght bytes
+            assert "content-length" in response_headers, "Missing Content-Length"
+            length = int(response_headers["content-length"])
+            content_bytes = response.read(length)
+        
+        # Handle content-encoding gzip
+        if response_headers.get("content-encoding") == "gzip":
+            content_bytes = gzip.decompress(content_bytes)
+
+        # Decode to string
+        content = content_bytes.decode("utf8")
+
+        cache_control = response_headers.get("cache-control", "")
+
+        if status == "200" and "no-store" not in cache_control:
+            if "max-age=" in cache_control:
+                max_age_part = cache_control.split("max-age=")[1]
+                max_age = int(max_age_part.split(",")[0].strip())
+                
+                if max_age > 0:
+                    expiry_time = time.time() + max_age
+                    URL._response_cache[cache_key] = (content, expiry_time)
 
         return content
     
