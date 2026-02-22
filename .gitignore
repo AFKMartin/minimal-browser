@@ -1,2 +1,3 @@
 # Ignore notes to myself
-/a
+/a   
+__pycache__/  

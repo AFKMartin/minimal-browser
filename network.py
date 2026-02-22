@@ -226,5 +226,3 @@ if __name__ == "__main__":
         load(URL(sys.argv[1]))
     else:
         load(URL("file://" + DEFAULT_FILE))
-
-
