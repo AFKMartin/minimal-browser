@@ -15,11 +15,19 @@ class Browser:
             width=WIDTH,
             height=HEIGHT
         )
-        self.canvas.pack()
+        # fil and expand
+        self.canvas.pack(fill="both", expand=True) 
         self.scroll = 0
+        self.width = WIDTH
+        self.height = HEIGHT
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
         self.window.bind("<MouseWheel>", self.on_mousewheel)
+        # Linux scroll events, b4 and b5 intead of mousewheel
+        self.window.bind("<Button-4>", self.scrollup)
+        self.window.bind("<Button-5>", self.scrolldown)
+        # Bind winddow resize
+        self.window.bind("<Configure>", self.on_resize)        
 
     def lex(self, body):
         text = ""
@@ -37,13 +45,14 @@ class Browser:
     def load(self, url):
         body = url.request()
         text = self.lex(body)
+        self.text = text # store text so we can relayout
         self.display_list = self.layout(text)
         self.draw()
 
     def draw(self):
         self.canvas.delete("all") # Delete old text when scrolling
         for x, y, c in self.display_list:
-            if y > self.scroll + HEIGHT:
+            if y > self.scroll + self.height:
                 continue
             if y + VSTEP < self.scroll:
                 continue
@@ -53,10 +62,16 @@ class Browser:
         display_list = []
         cursor_x, cursor_y = HSTEP, VSTEP
         for c in text:
+            # handle newline
+            if c == "\n":
+                cursor_y += VSTEP * 2
+                cursor_x = HSTEP
+                continue
+            
             display_list.append((cursor_x, cursor_y, c))
             cursor_x += HSTEP
 
-            if cursor_x >= WIDTH - HSTEP:
+            if cursor_x >= self.width - HSTEP:
                 cursor_y += VSTEP
                 cursor_x = HSTEP
 
@@ -67,7 +82,7 @@ class Browser:
         self.draw()
     
     def scrollup(self, e):
-        self.scroll -= SCROLL_STEP
+        self.scroll = max(0, self.scroll - SCROLL_STEP)
         self.draw()
     
     def on_mousewheel(self, e):
@@ -75,6 +90,15 @@ class Browser:
             self.scrollup(e)
         else:
             self.scrolldown(e)
+
+    def on_resize(self, e):
+        # update stored dimensions and redo layout whenever the window changes
+        if e.widget is self.window:
+            self.width = e.width
+            self.height = e.height
+            if hasattr(self, "text"):
+                self.display_list = self.layout(self.text)
+            self.draw()
 
 if __name__ == "__main__":
     Browser().load(URL(sys.argv[1]))
