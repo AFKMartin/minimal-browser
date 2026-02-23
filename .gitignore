@@ -1,3 +1,4 @@
 # Ignore notes to myself
 /a   
 __pycache__/  
+/openmoji
