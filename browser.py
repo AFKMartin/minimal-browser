@@ -8,7 +8,7 @@ HSTEP, VSTEP = 20, 20
 SCROLL_STEP = 100
 SCROLLBAR_WIDTH = 12
 EMOJI_SIZE = 16
-OPENMOJI_DIR = "openmoji" # folder for emojis
+OPENMOJI_DIR = "openmoji" # folder for emojis read README for more info.
 
 def is_emoji(c):
     cp = ord(c)
