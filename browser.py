@@ -2,6 +2,7 @@ import tkinter as tk
 from network import show, URL
 import sys
 import os
+import tkinter.font as tkf
 
 WIDTH, HEIGHT = 1200, 800
 HSTEP, VSTEP = 20, 20
@@ -11,12 +12,15 @@ EMOJI_SIZE = 16
 OPENMOJI_DIR = "openmoji" # folder for emojis read README for more info.
 
 def is_emoji(c):
-    cp = ord(c)
-    return (
-        0x1F300 <= cp <= 0x1FAFF or # Misc symbols, emoticons, transport, etc.
-        0x2600  <= cp <= 0x27BF or  # Misc symbols, dingbats
-        0x2300  <= cp <= 0x23FF     # Misc technical
-    )
+    if len(c) != 1:
+        return False
+    else:
+        cp = ord(c)
+        return (
+            0x1F300 <= cp <= 0x1FAFF or # Misc symbols, emoticons, transport, etc.
+            0x2600  <= cp <= 0x27BF or  # Misc symbols, dingbats
+            0x2300  <= cp <= 0x23FF     # Misc technical
+        )
 
 class Browser:
     def __init__(self, rtl=False):
@@ -47,6 +51,8 @@ class Browser:
         self.window.bind("<Button-5>", self.scrolldown)
         # Bind winddow resize
         self.window.bind("<Configure>", self.on_resize)        
+        # fonts
+        self.font = tkf.Font()
 
     # emoji
     def get_emoji_image(self, c):
@@ -100,11 +106,11 @@ class Browser:
         for x, y, c in self.display_list:
             if y > self.scroll + self.height:
                 continue
-            if y + VSTEP < self.scroll:
+            if y + self.font.metrics("linespace") < self.scroll:
                 continue
             screen_y = y - self.scroll
 
-            if is_emoji(c):
+            if len(c) == 1 and is_emoji(c):
                 img = self.get_emoji_image(c)
                 if img:
                     self.canvas.create_image(x, screen_y, image=img, anchor="nw")
@@ -134,11 +140,13 @@ class Browser:
 
         if self.display_list:
             last_y = max(y for _, y, _ in self.display_list)
-            self.max_scroll = max(0, last_y - self.height + VSTEP * 2)
+            line_height = self.font.metrics("linespace") * 1.25
+            self.max_scroll = max(0, last_y - self.height + line_height * 2)
         else:
             self.max_scroll = 0
 
     def layout(self, text):
+        # font = tkf.Font() # may cause problems
         display_list = []
         
         if self.rtl:         
@@ -160,17 +168,15 @@ class Browser:
         
         else:
             cursor_x, cursor_y = HSTEP, VSTEP
-            for c in text:
-                # handle newline
-                if c == "\n":
-                    cursor_y += VSTEP * 2
+            for word in text.split():
+                w = self.font.measure(word)
+
+                if cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
+                    cursor_y += self.font.metrics("linespace") * 1.25
                     cursor_x = HSTEP
-                    continue
-                display_list.append((cursor_x, cursor_y, c))
-                cursor_x += HSTEP
-                if cursor_x >= self.width - HSTEP - SCROLLBAR_WIDTH:
-                    cursor_y += VSTEP
-                    cursor_x = HSTEP
+                
+                display_list.append((cursor_x, cursor_y, word))
+                cursor_x += w + self.font.measure(" ")
 
         return display_list
 
