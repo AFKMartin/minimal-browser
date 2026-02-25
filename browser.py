@@ -3,6 +3,7 @@ from network import show, URL
 import sys
 import os
 import tkinter.font as tkf
+from parsing.html_parser import lex, Text, Tag
 
 WIDTH, HEIGHT = 1200, 800
 HSTEP, VSTEP = 20, 20
@@ -73,7 +74,7 @@ class Browser:
         self.emoji_cache[c] = img   # cache even on failure so we dont retry
         return img        
 
-    def lex(self, body):
+    '''def lex(self, body):
         text = ""
         in_tag = False
         for c in body:
@@ -84,20 +85,20 @@ class Browser:
             elif not in_tag:
                 text += c
         
-        return text
+        return text'''
 
     def load(self, url):
         # handle about:blank
         try:
             if isinstance(url, str) and url == "about:blank":
-                self.text = ""
+                self.tokens = []
             else:
                 body = url.request()
-                self.text = self.lex(body)
+                self.tokens = lex(body)
         except Exception:
-            self.text = ""
+            self.tokens = []
             
-        self.display_list = self.layout(self.text)
+        self.display_list = self.layout(self.tokens)
         self._update_max_scroll()
         self.draw()
 
@@ -145,38 +146,43 @@ class Browser:
         else:
             self.max_scroll = 0
 
-    def layout(self, text):
+    def layout(self, tokens):
         # font = tkf.Font() # may cause problems
         display_list = []
         
-        if self.rtl:         
+        if self.rtl:
             cursor_x = self.width - HSTEP
             cursor_y = VSTEP
-            for c in text:
-                # handle newline
-                if c == "\n":
-                    cursor_y += VSTEP * 2
-                    cursor_x = self.width - HSTEP
+            for tok in tokens:
+                if isinstance(tok, Tag):
                     continue
-                
-                display_list.append((cursor_x, cursor_y, c))
-                cursor_x -= HSTEP
+                for c in tok.text:
+                    if c == "\n":
+                        cursor_y += VSTEP * 2
+                        cursor_x = self.width - HSTEP
+                        continue
+                    
+                    display_list.append((cursor_x, cursor_y, c))
+                    cursor_x -= HSTEP
 
-                if cursor_x < HSTEP:
-                    cursor_y += VSTEP
-                    cursor_x = self.width - HSTEP
-        
+                    if cursor_x < HSTEP:
+                        cursor_y += VSTEP
+                        cursor_x = self.width - HSTEP
+            
         else:
             cursor_x, cursor_y = HSTEP, VSTEP
-            for word in text.split():
-                w = self.font.measure(word)
+            for tok in tokens:
+                if isinstance(tok, Tag):
+                    continue
+                for word in tok.text.split():
+                    w = self.font.measure(word)
 
-                if cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
-                    cursor_y += self.font.metrics("linespace") * 1.25
-                    cursor_x = HSTEP
-                
-                display_list.append((cursor_x, cursor_y, word))
-                cursor_x += w + self.font.measure(" ")
+                    if cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
+                        cursor_y += self.font.metrics("linespace") * 1.25
+                        cursor_x = HSTEP
+                    
+                    display_list.append((cursor_x, cursor_y, word))
+                    cursor_x += w + self.font.measure(" ")
 
         return display_list
 
@@ -199,8 +205,8 @@ class Browser:
         if e.widget is self.window:
             self.width = e.width
             self.height = e.height
-            if hasattr(self, "text"):
-                self.display_list = self.layout(self.text)
+            if hasattr(self, "tokens"):
+                self.display_list = self.layout(self.tokens)
                 self._update_max_scroll()
                 self.scroll = min(self.scroll, self.max_scroll)
             self.draw()
