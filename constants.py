@@ -1,0 +1,6 @@
+WIDTH, HEIGHT = 1200, 800
+HSTEP, VSTEP = 20, 20
+SCROLL_STEP = 100
+SCROLLBAR_WIDTH = 12
+EMOJI_SIZE = 16
+OPENMOJI_DIR = "openmoji" # folder for emojis read README for more info.
