@@ -4,13 +4,8 @@ import sys
 import os
 import tkinter.font as tkf
 from parsing.html_parser import lex, Text, Tag
-
-WIDTH, HEIGHT = 1200, 800
-HSTEP, VSTEP = 20, 20
-SCROLL_STEP = 100
-SCROLLBAR_WIDTH = 12
-EMOJI_SIZE = 16
-OPENMOJI_DIR = "openmoji" # folder for emojis read README for more info.
+from layout.layout import Layout
+from constants import WIDTH, HEIGHT, HSTEP, VSTEP, SCROLL_STEP, SCROLLBAR_WIDTH, EMOJI_SIZE, OPENMOJI_DIR
 
 def is_emoji(c):
     if len(c) != 1:
@@ -74,19 +69,6 @@ class Browser:
         self.emoji_cache[c] = img   # cache even on failure so we dont retry
         return img        
 
-    '''def lex(self, body):
-        text = ""
-        in_tag = False
-        for c in body:
-            if c == "<":
-                in_tag = True
-            elif c == ">":
-                in_tag = False
-            elif not in_tag:
-                text += c
-        
-        return text'''
-
     def load(self, url):
         # handle about:blank
         try:
@@ -98,16 +80,16 @@ class Browser:
         except Exception:
             self.tokens = []
             
-        self.display_list = self.layout(self.tokens)
+        self.display_list = Layout(self.tokens, self.width, self.rtl, self.font).display_list
         self._update_max_scroll()
         self.draw()
 
     def draw(self):
         self.canvas.delete("all") # Delete old text when scrolling
-        for x, y, c in self.display_list:
+        for x, y, c, font in self.display_list:
             if y > self.scroll + self.height:
                 continue
-            if y + self.font.metrics("linespace") < self.scroll:
+            if y + font.metrics("linespace") < self.scroll:
                 continue
             screen_y = y - self.scroll
 
@@ -117,7 +99,7 @@ class Browser:
                     self.canvas.create_image(x, screen_y, image=img, anchor="nw")
                     continue
 
-            self.canvas.create_text(x, screen_y, text=c, font=("Noto Sans CJK", 12))
+            self.canvas.create_text(x, screen_y, text=c, font=font)
 
         self._draw_scrollbar()
         
@@ -140,51 +122,12 @@ class Browser:
     def _update_max_scroll(self):
 
         if self.display_list:
-            last_y = max(y for _, y, _ in self.display_list)
-            line_height = self.font.metrics("linespace") * 1.25
+            last_y = max(y for _, y, _, _ in self.display_list)
+            last_font = self.display_list[-1][3]
+            line_height = last_font.metrics("linespace") * 1.25
             self.max_scroll = max(0, last_y - self.height + line_height * 2)
         else:
             self.max_scroll = 0
-
-    def layout(self, tokens):
-        # font = tkf.Font() # may cause problems
-        display_list = []
-        
-        if self.rtl:
-            cursor_x = self.width - HSTEP
-            cursor_y = VSTEP
-            for tok in tokens:
-                if isinstance(tok, Tag):
-                    continue
-                for c in tok.text:
-                    if c == "\n":
-                        cursor_y += VSTEP * 2
-                        cursor_x = self.width - HSTEP
-                        continue
-                    
-                    display_list.append((cursor_x, cursor_y, c))
-                    cursor_x -= HSTEP
-
-                    if cursor_x < HSTEP:
-                        cursor_y += VSTEP
-                        cursor_x = self.width - HSTEP
-            
-        else:
-            cursor_x, cursor_y = HSTEP, VSTEP
-            for tok in tokens:
-                if isinstance(tok, Tag):
-                    continue
-                for word in tok.text.split():
-                    w = self.font.measure(word)
-
-                    if cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
-                        cursor_y += self.font.metrics("linespace") * 1.25
-                        cursor_x = HSTEP
-                    
-                    display_list.append((cursor_x, cursor_y, word))
-                    cursor_x += w + self.font.measure(" ")
-
-        return display_list
 
     def scrolldown(self, e):
         self.scroll = min(self.max_scroll, self.scroll + SCROLL_STEP)
@@ -206,7 +149,7 @@ class Browser:
             self.width = e.width
             self.height = e.height
             if hasattr(self, "tokens"):
-                self.display_list = self.layout(self.tokens)
+                self.display_list = Layout(self.tokens, self.width, self.rtl, self.font).display_list
                 self._update_max_scroll()
                 self.scroll = min(self.scroll, self.max_scroll)
             self.draw()
