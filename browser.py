@@ -99,7 +99,7 @@ class Browser:
                     self.canvas.create_image(x, screen_y, image=img, anchor="nw")
                     continue
 
-            self.canvas.create_text(x, screen_y, text=c, font=font)
+            self.canvas.create_text(x, screen_y, text=c, font=font, anchor="nw")
 
         self._draw_scrollbar()
         
