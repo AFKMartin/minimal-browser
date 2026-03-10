@@ -1,6 +1,19 @@
 import tkinter.font as tkf
+import tkinter as tk
 from constants import HSTEP, VSTEP, SCROLLBAR_WIDTH
 from parsing.html_parser import Text, Tag
+
+FONTS = {}
+
+def get_font(size, weight, style):
+    key = (size, weight, style)
+    if key not in FONTS:
+        font = tkf.Font(size=size, 
+                        weight=weight, 
+                        slant=style)
+        label = tk.Label(font=font)
+        FONTS[key] = (font, label)
+    return FONTS[key][0]
 
 class Layout:
     def __init__(self, tokens, width, rtl, font):
@@ -67,10 +80,10 @@ class Layout:
             self.cursor_y += VSTEP
 
     def word(self, word):
-        font = tkf.Font(
+        font = get_font(
             size=self.size,
             weight=self.weight,
-            slant=self.style,
+            style=self.style,
         )
         w = font.measure(word)
         
@@ -94,3 +107,5 @@ class Layout:
         self.cursor_y = baseline + 1.25 * max_descent
         self.cursor_x = HSTEP
         self.line = []
+
+# TODO https://browser.engineering/text.html#exercises 
