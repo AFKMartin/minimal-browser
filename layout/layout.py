@@ -25,6 +25,7 @@ class Layout:
         self.font = font
         self.size = 12
         self.line = []
+        self.centered = False
 
         if self.rtl:
             self.cursor_x = self.width - HSTEP
@@ -78,6 +79,12 @@ class Layout:
         elif tok.tag == "/p":
             self.flush()
             self.cursor_y += VSTEP
+        elif tok.tag == 'h1 class="title"':
+            self.flush()
+            self.centered = True
+        elif tok.tag == "/h1":
+            self.flush()
+            self.centered = False
 
     def word(self, word):
         font = get_font(
@@ -98,9 +105,17 @@ class Layout:
         metrics = [font.metrics() for x, word, font in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
         baseline = self.cursor_y + 1.25 * max_ascent
+
+        if self.centered:
+            line_width = self.cursor_x - HSTEP
+            content_width = self.width - 2 * HSTEP - SCROLLBAR_WIDTH
+            offset = max(0, (content_width - line_width) / 2)
+        else:
+            offset = 0
+
         for x, word, font in self.line:
             y = baseline - font.metrics("ascent")
-            self.display_list.append((x, y, word, font))
+            self.display_list.append((x + offset, y, word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
 
