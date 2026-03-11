@@ -26,6 +26,7 @@ class Layout:
         self.size = 12
         self.line = []
         self.centered = False
+        self.superscript = False
 
         if self.rtl:
             self.cursor_x = self.width - HSTEP
@@ -85,6 +86,12 @@ class Layout:
         elif tok.tag == "/h1":
             self.flush()
             self.centered = False
+        elif tok.tag == "sup":
+            self.superscript = True
+            self.size = max(1, self.size // 2)
+        elif tok.tag == "/sup":
+            self.superscript = False
+            self.size *= 2
 
     def word(self, word):
         font = get_font(
@@ -97,12 +104,12 @@ class Layout:
         if self.cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
             self.flush()
         
-        self.line.append((self.cursor_x, word, font))
+        self.line.append((self.cursor_x, word, font, self.superscript))
         self.cursor_x += w + font.measure(" ")
 
     def flush(self):
         if not self.line: return
-        metrics = [font.metrics() for x, word, font in self.line]
+        metrics = [font.metrics() for x, word, font, sup in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
         baseline = self.cursor_y + 1.25 * max_ascent
 
@@ -112,9 +119,13 @@ class Layout:
             offset = max(0, (content_width - line_width) / 2)
         else:
             offset = 0
+        
+        for x, word, font, sup in self.line:
 
-        for x, word, font in self.line:
-            y = baseline - font.metrics("ascent")
+            if sup:
+                y =  baseline - max_ascent
+            else:
+                y = baseline - font.metrics("ascent")
             self.display_list.append((x + offset, y, word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
