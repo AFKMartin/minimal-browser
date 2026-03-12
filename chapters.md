@@ -21,3 +21,6 @@
 - 14) Making Content Accessible []
 - 15) Supporting Embedded Content []
 - 16) Reusing Previous Computation []
+
+# https://browser.engineering/html.html 
+# 1. A tree of nodes
