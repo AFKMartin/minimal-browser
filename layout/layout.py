@@ -4,6 +4,7 @@ from constants import HSTEP, VSTEP, SCROLLBAR_WIDTH
 from parsing.html_parser import Text, Tag
 
 FONTS = {}
+SOFT_HYPHEN = "\N{soft hyphen}"
 
 def get_font(size, weight, style):
     key = (size, weight, style)
@@ -94,6 +95,10 @@ class Layout:
             self.size *= 2
 
     def word(self, word):
+        if SOFT_HYPHEN in word:
+            self.word_with_soft_hyphens(word)
+            return
+        
         font = get_font(
             size=self.size,
             weight=self.weight,
@@ -106,6 +111,35 @@ class Layout:
         
         self.line.append((self.cursor_x, word, font, self.superscript))
         self.cursor_x += w + font.measure(" ")
+    
+    def word_with_soft_hyphens(self, word):
+        parts = word.split(SOFT_HYPHEN)
+        font = get_font(self.size,
+                        self.weight,
+                        self.style)
+        
+        current = ""
+        for i, part in enumerate(parts):
+            is_last = (i == len(parts) - 1)
+            candidate = current + part
+            suffix = "" if is_last else "-"
+            w = font.measure(candidate + suffix)
+
+            if self.cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH and current:
+                # render current + hyphen, the start new line
+                display = current + "-"
+                self.line.append((self.cursor_x, display, font, self.superscript))
+                self.cursor_x += font.measure(display)
+                self.flush()
+                current = part
+            else:
+                current = candidate
+        if current:
+            w = font.measure(current)
+            if self.cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
+                self.flush()
+            self.line.append((self.cursor_x, current, font, self.superscript))
+            self.cursor_x += w + font.measure(" ")
 
     def flush(self):
         if not self.line: return
