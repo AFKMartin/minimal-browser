@@ -6,12 +6,15 @@ from parsing.html_parser import Text, Tag
 FONTS = {}
 SOFT_HYPHEN = "\N{soft hyphen}"
 
-def get_font(size, weight, style):
-    key = (size, weight, style)
+def get_font(size, weight, style, family=None):
+    key = (size, weight, style, family)
     if key not in FONTS:
-        font = tkf.Font(size=size, 
-                        weight=weight, 
-                        slant=style)
+        kwargs = dict(size=size,
+                      weight=weight,
+                      slant=style)
+        if family:
+            kwargs["family"] = family
+        font = tkf.Font(**kwargs)
         label = tk.Label(font=font)
         FONTS[key] = (font, label)
     return FONTS[key][0]
@@ -28,6 +31,8 @@ class Layout:
         self.line = []
         self.centered = False
         self.superscript = False
+        self.abbr = False
+        self.pre = False
 
         if self.rtl:
             self.cursor_x = self.width - HSTEP
@@ -57,8 +62,14 @@ class Layout:
     
     def token(self, tok):
         if isinstance(tok, Text):
-            for word in tok.text.split():
-                self.word(word)
+            if self.pre:
+                self.pre_text(tok.text)
+            elif self.abbr:
+                for word in tok.text.split():
+                    self.abbr_word(word)
+            else:
+                for word in tok.text.split():
+                    self.word(word)
         
         elif tok.tag == "i":
             self.style = "italic"
@@ -93,6 +104,16 @@ class Layout:
         elif tok.tag == "/sup":
             self.superscript = False
             self.size *= 2
+        elif tok.tag == "abbr":
+            self.abbr = True
+        elif tok.tag == "/abbr":
+            self.abbr = False
+        elif tok.tag == "pre":
+            self.flush()
+            self.pre = True
+        elif tok.tag == "/pre":
+            self.flush()
+            self.pre = False
 
     def word(self, word):
         if SOFT_HYPHEN in word:
@@ -140,6 +161,52 @@ class Layout:
                 self.flush()
             self.line.append((self.cursor_x, current, font, self.superscript))
             self.cursor_x += w + font.measure(" ")
+    
+    def abbr_word(self, word):
+        i = 0
+        while i < len(word):
+            c = word[i]
+            if c.islower():
+                j = i
+                while j < len(word) and word[j].islower():
+                    j += 1
+                sub = word[i:j].upper()
+                font = get_font(max(1, self.size - 2), "bold", self.style)
+                w = font.measure(sub)
+                if self.cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
+                    self.flush()
+                self.line.append((self.cursor_x, sub, font, self.superscript))
+                self.cursor_x += w
+                i = j
+            else:
+                j = i
+                while j < len(word) and not word[j].islower():
+                    j += 1
+                sub = word[i:j]
+                font = get_font(self.size, self.weight, self.style)
+                w = font.measure(sub)
+                if self.cursor_x + w > self.width - HSTEP - SCROLLBAR_WIDTH:
+                    self.flush()
+                self.line.append((self.cursor_x, sub, font, self.superscript))
+                self.cursor_x += w
+                i = j
+        
+        font = get_font(self.size, self.weight, self.style)
+        self.cursor_x += font.measure(" ")
+    
+    def pre_text(self, text):
+        lines = text.split("\n")
+        for i, line_text in enumerate(lines):
+            if i > 0:
+                self.flush()
+            parts = line_text.split(" ")
+            for j, part in enumerate(parts):
+                font = get_font(self.size, self.weight, self.style, family="Courier New")
+                if part:
+                    self.line.append((self.cursor_x, part, font, False))
+                    self.cursor_x += font.measure(part)
+                if j < len(parts) - 1:
+                    self.cursor_x += font.measure(" ")
 
     def flush(self):
         if not self.line: return
@@ -168,4 +235,3 @@ class Layout:
         self.cursor_x = HSTEP
         self.line = []
 
-# TODO https://browser.engineering/text.html#exercises 
