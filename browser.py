@@ -3,7 +3,7 @@ from network import show, URL
 import sys
 import os
 import tkinter.font as tkf
-from parsing.html_parser import lex, Text, Tag
+from parsing.html_parser import *
 from layout.layout import Layout
 from constants import WIDTH, HEIGHT, HSTEP, VSTEP, SCROLL_STEP, SCROLLBAR_WIDTH, EMOJI_SIZE, OPENMOJI_DIR
 
@@ -76,7 +76,7 @@ class Browser:
                 self.tokens = []
             else:
                 body = url.request()
-                self.tokens = lex(body)
+                self.tokens = HTMLParser(body).parse()
         except Exception:
             self.tokens = []
             
