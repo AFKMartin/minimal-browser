@@ -35,6 +35,8 @@ class HTMLParser:
             self.add_text(text)
         return self.finish()
 
+# DELETE Lex function
+'''
 def lex(body):
     out = []
     buffer = ""
@@ -53,3 +55,4 @@ def lex(body):
     if not in_tag and buffer:
         out.append(Text(buffer))
     return out
+'''

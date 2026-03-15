@@ -1,7 +1,7 @@
 import tkinter.font as tkf
 import tkinter as tk
 from constants import HSTEP, VSTEP, SCROLLBAR_WIDTH
-from parsing.html_parser import Text, Tag
+from parsing.html_parser import *
 
 FONTS = {}
 SOFT_HYPHEN = "\N{soft hyphen}"
@@ -234,4 +234,3 @@ class Layout:
         self.cursor_y = baseline + 1.25 * max_descent
         self.cursor_x = HSTEP
         self.line = []
-
