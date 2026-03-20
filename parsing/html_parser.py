@@ -1,5 +1,3 @@
-
-
 class Text:
     def __init__(self, text, parent):
         self.text = text
@@ -17,6 +15,30 @@ class HTMLParser:
         self.body = body
         self.unfinished = []
         
+    def add_text(self, text):
+        parent = self.unfinished[-1]
+        node = Text(text, parent)
+        parent.children.append(node)
+    
+    def add_tag(self, tag):
+        if tag.startswith("/"):
+            if len(self.unfinished) == 1:
+                return
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        else:
+            parent = self.unfinished[-1] if self.unfinished else None
+            node = Element(tag, parent)
+            self.unfinished.append(node)
+
+    def finish(self):
+        while len(self.unfinished) > 1:
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        return self.unfinished.pop()
+    
     def parse(self):
         text = ""
         in_tag = False

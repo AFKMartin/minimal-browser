@@ -4,7 +4,7 @@
 - 3) Formatting Text [Implemented]
 
 ***Part 2: Viewing Documents***
-- 4) Constructing an HTML Tree [On part 2]
+- 4) Constructing an HTML Tree [On part 3 Debugging a Parser]
 - 5) Laying Out Pages []
 - 6) Applying Author Styles []
 - 7) Handling Buttons and Links []
